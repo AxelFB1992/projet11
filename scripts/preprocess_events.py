@@ -49,7 +49,8 @@ def build_embedding_text(row):
         row["description"],
         f"Lieu : {row['venue_name']}, {row['city']} ({row['department']})" if row["venue_name"] else f"Lieu : {row['city']} ({row['department']})",
         f"Mots-clés : {row['keywords']}" if row["keywords"] else "",
-        f"Date : {row['date_start']}" if row["date_start"] else "",
+        #On retirer cela car une date vectorisé ne veut rien dire : mieux vaut la garder comme métadonnées au moment de la vectorisation
+        #f"Date : {row['date_start']}" if row["date_start"] else "",
     ]
     return " | ".join(p for p in parts if p)
 
