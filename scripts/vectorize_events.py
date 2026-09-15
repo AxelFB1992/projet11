@@ -1,8 +1,7 @@
-"""
+"""Teste le filtrage par métadonnées combiné à la recherche sémantique FAISS.
 Construit (ou reconstruit) la base vectorielle FAISS à partir des événements
 nettoyés. Ce script peut être relancé à tout moment pour régénérer l'index
-depuis data/events_clean.csv.
-"""
+depuis data/events_clean.csv."""
 
 import os
 import pandas as pd
@@ -18,6 +17,7 @@ DATA_PATH = "data/events_clean.json"
 INDEX_PATH = "vectorstore/faiss_index"
 
 
+"""Teste le filtrage par métadonnées combiné à la recherche sémantique FAISS."""
 def load_documents(path=DATA_PATH):
         """Charge les événements nettoyés et les convertit en Documents LangChain,
         avec les métadonnées séparées du texte vectorisé (voir discussion sur
