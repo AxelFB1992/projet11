@@ -82,6 +82,45 @@ def main():
     df = df[df["department"].notna() & (df["department"].str.strip() != "")]
     print(f"Événements en ligne/sans lieu exclus : {before - len(df)}")
 
+    # Exclusion des événements hors région Pays de la Loire (Unidivers
+    # est un agrégateur "Grand Ouest", potentiellement plus large que
+    # le seul périmètre régional retenu pour ce POC).
+    before = len(df)
+    df = df[df["region"] == "Pays de la Loire"]
+    print(f"Événements hors région Pays de la Loire exclus : {before - len(df)}")
+
+        # Exclusion des événements non culturels (orientation professionnelle,
+    # emploi, salons étudiants) hérités de l'agenda institutionnel régional.
+    # Puls-Events est positionnée sur les événements culturels uniquement.
+    NON_CULTURAL_PATTERNS = [
+        r"\borientation\b",
+        r"\bemploi\b",
+        r"\bparcoursup\b",
+        r"\brecrutement\b",
+        r"\bjob\s?dating\b",
+        r"\bcarrières?\b",
+        r"\balternance\b",
+        r"\bapprentissage\b",
+        r"\binsertion professionnelle\b",
+        r"salon de l'étudiant",
+        r"salon des métiers",
+        r"forum des métiers",
+        r"forum.{0,15}métiers",
+        r"\bstudyrama\b",
+        r"big bang orientation",
+    ]
+    exclusion_regex = re.compile("|".join(NON_CULTURAL_PATTERNS), re.IGNORECASE)
+
+    texte_complet = (df["title"].fillna("") + " " + df["description"].fillna("") + " " + df["keywords"].fillna(""))
+    mask_non_culturel = texte_complet.str.contains(exclusion_regex)
+
+    before = len(df)
+    evenements_exclus = df[mask_non_culturel]["title"].tolist()
+    df = df[~mask_non_culturel]
+    print(f"Événements non culturels exclus : {before - len(df)}")
+    for titre in evenements_exclus:
+        print(f"    - {titre}")
+
     # Construction du texte destiné à la vectorisation
     df["embedding_text"] = df.apply(build_embedding_text, axis=1)
 
