@@ -32,12 +32,16 @@ Contexte (événements disponibles) :
 {context}
 """
 
-
+#De la même manière qu'on rechargait le vectorstore pour faire des tests avec des questions dans vectorize_events.py
+#On recharge ici cet objet FAISS pour avoir accès au même moteur de vectorisation que celui a permis de faire l'index FAISSle Document original contient toutes les informations de départ
 def load_vectorstore():
+    #On crée le type d'objet qui va recevoir le vectorstore
     embeddings = MistralAIEmbeddings(model="mistral-embed")
+    #Et on va charger le vrai modèle que l'on a stocké dans INDEX_PATH pour retourner un objet FAISS complet
     return FAISS.load_local(INDEX_PATH, embeddings, allow_dangerous_deserialization=True)
 
-
+#le Document original contient toutes les informations de départ
+#On recupère, via l'index, les différents départements et villes qui sont présents dans les documents originaux
 def load_known_locations(vectorstore):
     """Construit les ensembles de villes et départements réellement présents
     dans le corpus indexé, pour la détection de lieu dans les questions."""
@@ -83,16 +87,26 @@ def format_docs(docs):
 
 
 def build_rag_chain(k=5):
+    #On recupère l'objet FAISS encapsulant l'index et les documents originaux
     vectorstore = load_vectorstore()
+    #On récupère, via l'index, les différents départements et villes contenus dans les documents
     departments, cities = load_known_locations(vectorstore)
+    #On liste le nombre total de documents
     total_docs = len(vectorstore.index_to_docstore_id)
 
+    #Cette méthode permet de retourner les similarités entre la question et les documents présent dans l'objet (via l'index)
+    #Avant de rechercher directement les similarités, on va d'abord regarder les départements et villes énoncées dans la question
+    #correspondent bien à des villes et départements présents dans le corpus (avec avec load_knows_locations)
+    #Si c'est bien le cas, alors on va rechercher des similarités avec un élement en plus : un filtre pour la localisation
+    #Si ce n'est pas le cas, alors on fait juste une recherche de similarité vu qu'aucune localisation connue n'est mentionnée
     def retrieve(question):
         location_filter = extract_location(question, departments, cities)
         if location_filter:
             results = vectorstore.similarity_search(
                 question, k=k, filter=location_filter, fetch_k=total_docs
             )
+            #Si il n'y a pas de resultat pour la recherche filtré (trop restrictives), alors on donne quand même un résultat
+            #Mais en signalant, via le LLM, que les lieux sont proches mais non correspondant à ceux demandés (via le prompt système) 
             if not results:
                 # Aucun événement dans ce lieu précis : on redonne quand même
                 # un contexte général (sans filtre) pour que le modèle puisse
@@ -101,25 +115,41 @@ def build_rag_chain(k=5):
                 # correspondant au lieu demandé.
                 results = vectorstore.similarity_search(question, k=k)
         else:
+            #Aucune localisation connue mentionné, on fait un simple recherche par similarité
             results = vectorstore.similarity_search(question, k=k)
-
+        
         print(f"  [DEBUG] {len(results)} documents récupérés : {[d.metadata['title'] for d in results]}")
 
+        #On retourne les résultats d'évenements formattés proprement grâce à la méthode format_docs, pour une meilleur visibilité
         return format_docs(results)
 
+    #====C'est cette partie qui correspond veritablement à l'interaction entre les requêtes et le modèle====
+
+    #Ici c'est le prompt composé du prompt système et de la question
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
         ("human", "{question}"),
     ])
 
+    #Ici c'est le LLM fournit par Mistral, un modèle de langage déjà entrainé sur une quantité de données suffisante pour répondre
     llm = ChatMistralAI(model="mistral-small-latest", temperature=0.3)
 
+    #Voilà le système RAG complet condensés dans ces quelques lignes qui contient :
+    # - le promt global (question + prompt système)
+    # - le llm
+    # - le contexte, qui consiste en un appel à la méthode retrieve qui se charge de faire appel à la base de données vectorielle
+    #ainsi que tous les documents originaux. De même la question de l'utilisation fait également partie du contexte.
+    # - Un parseur, qui permet certainement de structurer la réponse fournie par le llm
     chain = (
         {"context": RunnableLambda(retrieve), "question": RunnablePassthrough()}
         | prompt
         | llm
         | StrOutputParser()
     )
+
+    #On retourne ce système qui servira à répondre aux différentes questions posées
+    #En sachant qu'à chaque question, ça sera un appel interne à la fonction invoke(question) qui permettra d'utiliser toutes les 
+    #ressources définies à l'intérieur de celui-ci (contexte, prompt, llm)
     return chain
 
 

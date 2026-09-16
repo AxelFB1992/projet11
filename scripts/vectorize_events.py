@@ -1,7 +1,12 @@
 """Teste le filtrage par métadonnées combiné à la recherche sémantique FAISS.
 Construit (ou reconstruit) la base vectorielle FAISS à partir des événements
 nettoyés. Ce script peut être relancé à tout moment pour régénérer l'index
-depuis data/events_clean.csv."""
+depuis data/events_clean.json.
+
+En effet, dans cet index, il y a deux technologie :
+-les métadonnées comme la date
+-La recherche semantique qui utilise l'index vectorisé pour faire des recherches sur les champs textuels
+"""
 
 import os
 import pandas as pd
@@ -11,39 +16,49 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_mistralai import MistralAIEmbeddings
 from langchain_community.vectorstores import FAISS
 
+#Permet de charger les variables d'environnement
 load_dotenv()
 
+#Le fichier où l'on récupère les éléments
 DATA_PATH = "data/events_clean.json"
+
+#Le fichier où l'on va stocker l'index
 INDEX_PATH = "vectorstore/faiss_index"
 
-
-"""Teste le filtrage par métadonnées combiné à la recherche sémantique FAISS."""
+"""Charge les événements nettoyés et les convertit en Documents LangChain,
+avec les métadonnées séparées du texte vectorisé (voir discussion sur
+l'exclusion de la date de l'embedding_text)."""
 def load_documents(path=DATA_PATH):
-        """Charge les événements nettoyés et les convertit en Documents LangChain,
-        avec les métadonnées séparées du texte vectorisé (voir discussion sur
-        l'exclusion de la date de l'embedding_text)."""
-        df = pd.read_json(path)
-        df["date_start"] = pd.to_datetime(df["date_start"], errors="coerce", utc=True)
-        df["date_end"] = pd.to_datetime(df["date_end"], errors="coerce", utc=True)
-    
-        documents = []
-        for _, row in df.iterrows():
-            metadata = {
-                "uid": str(row["uid"]),
-                "title": row["title"],
-                "city": row["city"],
-                "department": row["department"],
-                "region": row["region"],
-                "date_start": row["date_start"].isoformat() if pd.notna(row["date_start"]) else None,
-                "date_end": row["date_end"].isoformat() if pd.notna(row["date_end"]) else None,
-                "venue_name": row["venue_name"],
-                "latitude": row["latitude"] if pd.notna(row["latitude"]) else None,
-                "longitude": row["longitude"] if pd.notna(row["longitude"]) else None,
-                "url": row["url"],
-            }
-            documents.append(Document(page_content=row["embedding_text"], metadata=metadata))
-    
-        return documents
+
+    #On lit le fichier json correspondant aux évenements nettoyés et on les stocke dans un dataframe (ils sont déjà parsé).
+    df = pd.read_json(path)
+    #On récupère tout de suite les dates de début et les dates de fin qu'on l'on convertit en datetime
+    df["date_start"] = pd.to_datetime(df["date_start"], errors="coerce", utc=True)
+    df["date_end"] = pd.to_datetime(df["date_end"], errors="coerce", utc=True)
+
+    """On génère des documents qui vont avoir la structure suivante :
+        -le contenu de embedding_text en format brut : une ligne
+        -les metadonnées sous forme de sous document structuré avec plusieurs champs reprenant les champs du fichier (hors embedding)
+    """
+    documents = []
+    for _, row in df.iterrows():
+        metadata = {
+            "uid": str(row["uid"]),
+            "title": row["title"],
+            "city": row["city"],
+            "department": row["department"],
+            "region": row["region"],
+            "date_start": row["date_start"].isoformat() if pd.notna(row["date_start"]) else None,
+            "date_end": row["date_end"].isoformat() if pd.notna(row["date_end"]) else None,
+            "venue_name": row["venue_name"],
+            "latitude": row["latitude"] if pd.notna(row["latitude"]) else None,
+            "longitude": row["longitude"] if pd.notna(row["longitude"]) else None,
+            "url": row["url"],
+        }
+        documents.append(Document(page_content=row["embedding_text"], metadata=metadata))
+
+    #On liste cette liste de couple de documents
+    return documents
 
 
 def chunk_documents(documents):
@@ -51,6 +66,10 @@ def chunk_documents(documents):
     événement), la grande majorité des documents tiendront dans un seul
     chunk — le splitter protège simplement les rares descriptions plus
     longues que la moyenne, sans intervention manuelle au cas par cas."""
+
+    """Par ailleurs cette fonction découpe uniquement la partie embedding_text et génère des chunks par rapport à cette partie
+    Le metadata original est copié tel quel sur chaque chunk généré correspondant à sa partie embedding_text
+    """
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=100,
@@ -68,11 +87,20 @@ def build_vectorstore(chunks):
     gain qu'à partir de dizaines de milliers de vecteurs, au prix d'une
     perte de précision. Point à documenter dans le rapport technique
     comme recommandation pour un passage à l'échelle en production."""
+
+    #retourne un moteur "d'embedding" permettant de faire la vectorisation via l'API Mistral
     embeddings = MistralAIEmbeddings(model="mistral-embed")
+    
+    #Utilisation d'un objet de classe FAISS et de la méthode from document pour lancer les différents appels et faire la vectorisation
+    #Cette méthode retourne un objet FAISS (vectorstore) qui contient : l'index vectorisé, le document original et le docstore
+    #l'index FAISS contient des vecteurs qui permettent de faire des recherches dans les documents
+    #Une reférence vers embeddings (le moteur permettant de faire la vectorisation)
+    #le docstore qui fait le lien entre l'index et le document original.
     vectorstore = FAISS.from_documents(chunks, embeddings)
     return vectorstore
 
-
+#Permet de faire des tests de recherche pour voir si des correspondances sont bien trouvés entre les questions et l'index
+#On re-utilise l'objet vectorstore car c'est lui qui a permet de vectorisé l'index, donc qui vectorisera aussi les questions
 def test_search(vectorstore):
     """Quelques recherches de vérification pour valider la pertinence sémantique."""
     test_queries = [
