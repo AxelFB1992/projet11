@@ -143,3 +143,6 @@ def inspect_upcoming_region(agenda_uid, nom):
 if __name__ == "__main__":
     #C'est le dernier agenda que l'on a inspecté avant de se focaliser dessus : les pays de la loire
     inspect_upcoming_region(16676449, "Agenda de la Région des Pays de la Loire")
+    #inspect_upcoming_region(14115607, "Unidivers Oui sortir")
+    inspect_upcoming_region(31651509, "Théâtre de Laval - CDN")
+    inspect_upcoming_region(48454528, "Réseau des médiathèques & Archives du Mans")

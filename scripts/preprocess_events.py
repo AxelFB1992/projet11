@@ -45,6 +45,7 @@ def extract_event(e):
         "date_start": first_timing.get("begin"),
         "date_end": last_timing.get("end"),
         "slug": e.get("slug"),
+        "source_agenda": e.get("_source_agenda", ""),
         "url": f"https://openagenda.com/agenda-de-la-region-des-pays-de-la-loire/events/{e.get('slug')}" if e.get("slug") else "",
     }
 
@@ -148,6 +149,34 @@ def main():
     for titre in evenements_exclus:
         print(f"    - {titre}")
 
+    # Filtrage culturel renforcé pour la source "Département de la Vendée" uniquement.
+    # Contrairement aux autres sources (agendas institutionnels culturels dédiés), celle-ci
+    # est un agenda généraliste (conseils municipaux, vide-greniers, forums santé, sport...).
+    # La liste noire ci-dessus ne suffit pas : on applique donc une liste BLANCHE de mots-clés
+    # culturels, réservée aux événements de cette source, en plus du filtre déjà appliqué à tous.
+    # Les deux filtres appliquées ne sont pas redondants mais compélmentaires (voir Notebook)
+    CULTURAL_PATTERNS = [
+        r"th[ée][aâ]tre", r"\bdanse\b", r"\bmusique\b", r"\bconcert\b",
+        r"exposition", r"\bexpo\b", r"festival", r"spectacle",
+        r"\bcirque\b", r"marionnette", r"op[ée]ra", r"cin[ée]ma",
+        r"\bconte\b", r"po[ée]sie", r"litt[ée]rature", r"\bchorale\b",
+        r"\bballet\b", r"m[ée]diath[èe]que", r"biblioth[èe]que",
+        r"\bpeinture\b", r"\bsculpture\b", r"photographie", r"vernissage",
+        r"patrimoine", r"art contemporain", r"atelier cr[ée]atif",
+        r"\bgravure\b", r"illustration", r"arts plastiques", r"\bslam\b",
+        r"spectacle vivant", r"\bhumour\b", r"conservatoire", r"\blecture\b",
+    ]
+    cultural_regex = re.compile("|".join(CULTURAL_PATTERNS), re.IGNORECASE)
+
+    est_source_vendee = df["source_agenda"] == "Département de la Vendée"
+    texte_complet_vendee = (df["title"].fillna("") + " " + df["description"].fillna("") + " " + df["keywords"].fillna(""))
+    mask_culturel_vendee = texte_complet_vendee.str.contains(cultural_regex)
+
+    # On garde : tout événement qui NE vient PAS de cette source, OU qui en vient et matche la liste blanche
+    before = len(df)
+    df = df[~est_source_vendee | mask_culturel_vendee]
+    print(f"Événements 'Département de la Vendée' exclus (hors périmètre culturel) : {before - len(df)}")
+
     # Construction du texte destiné à la vectorisation
     # Cet appel permet d'appliquer la fonction build_embedding_text soit aux lignes soit aux colonnes du dataframe
     # En l'occurrence ici, cela permet d'appliquer la fonction aux différences lignes (axis = 1) sans faire plusieurs appels
@@ -162,6 +191,9 @@ def main():
     print(f"\n{len(df)} événements propres sauvegardés dans data/events_clean.csv et .json")
     print(f"\nAperçu :")
     print(df[["title", "city", "department", "date_start"]].head(5).to_string())
+
+    print(f"\nRépartition par département :")
+    print(df["department"].value_counts(dropna=False).to_string())
 
 if __name__ == "__main__":
     main()

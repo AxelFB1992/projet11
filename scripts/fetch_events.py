@@ -12,9 +12,10 @@ API_KEY = os.getenv("OPENAGENDA_API_KEY")
 #... Par une recherche sur plusieurs sources
 SOURCES = [
     {"uid": 16676449, "nom": "Agenda Région Pays de la Loire", "admin_level2": None},
-    #{"uid": 28658827, "nom": "Le Kiosque Mayenne", "admin_level2": None},
-    #{"uid": 56526489, "nom": "Les nuits de la Mayenne", "admin_level2": None},
     {"uid": 14115607, "nom": "Unidivers Oui sortir", "admin_level2": None},
+    {"uid": 31651509, "nom": "Théâtre de Laval - CDN", "admin_level2": None},
+    {"uid": 48454528, "nom": "Réseau des médiathèques & Archives du Mans", "admin_level2": None},
+    {"uid": 7894666, "nom": "Département de la Vendée", "admin_level2": None},
 ]
 
 

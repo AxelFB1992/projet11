@@ -16,6 +16,11 @@ def main():
     chain = build_rag_chain()
     print("Prêt !\n")
 
+    """C'est exactement le même processus que dans l'autre script, cependant on remet en boucle un input pour une entrée utilisateur
+    Sauf quand celui-ci écrit explicitement "quit", "exit" ou "q"
+    Mais quand il ecrit autre chose, on invoque tout simplement la fonction 'invoke' de l'objet chain qui contient notre systeme RAG
+    Celle-ci va utiliser notre objet pour obtenir une réponse grâce au contexte, à l'input et au LLM
+    """
     while True:
         try:
             question = input("Vous : ").strip()

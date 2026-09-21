@@ -140,6 +140,7 @@ def build_rag_chain(k=5):
     # - le contexte, qui consiste en un appel à la méthode retrieve qui se charge de faire appel à la base de données vectorielle
     #ainsi que tous les documents originaux. De même la question de l'utilisation fait également partie du contexte.
     # - Un parseur, qui permet certainement de structurer la réponse fournie par le llm
+    # Chain est un objet de type 'RunnableSequence', de la classe langchain_core.runnables.base.RunnableSequence
     chain = (
         {"context": RunnableLambda(retrieve), "question": RunnablePassthrough()}
         | prompt
