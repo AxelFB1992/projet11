@@ -171,6 +171,11 @@ def main():
         response = chain.invoke(question)
         print(f"R : {response}\n")
 
+    """L'élément chain est un objet de type RunnableSequence qui, comme son nom l'indique, est une séquence d'objet de type Runnable
+    Or, comme tout objet Runnable, il implémente la méthode invoke. Je suppose que cette méthode invoke appelle dans l'ordre chacune
+    des méthodes invoke de chaque objet Runnable qui compose le Runnable Sequence.
+    --> Tous les objets heritent de l'interface Runnable
+    """
 
 if __name__ == "__main__":
     main()
