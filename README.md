@@ -15,9 +15,9 @@ La mission confiée dans le cadre de ce projet n'est pas de livrer ce chatbot en
 Ce projet met en œuvre une chaîne complète permettant de :
 
 1. **Collecter** des événements culturels réels via l'API [OpenAgenda](https://developers.openagenda.com/), à partir de plusieurs agendas couvrant la région Pays de la Loire.
-2. **Nettoyer et structurer** ces données pour ne conserver que des événements culturels, géolocalisés et exploitables.
+2. **Nettoyer et structurer** ces données pour ne conserver que des événements culturels, géolocalisés et exploitables (sans caractère spéciaux ni espaces multiples).
 3. **Vectoriser** ces événements dans une base vectorielle **FAISS**, à l'aide des embeddings **Mistral** (`mistral-embed`).
-4. **Interroger** cette base via un système RAG construit avec **LangChain**, combinant recherche par similarité (avec filtrage géographique automatique) et génération de réponse par un LLM (`mistral-small-latest`).
+4. **Interroger** cette base via un système RAG construit avec **LangChain**, combinant recherche par similarité sur l'index vectoriel(avec filtrage géographique automatique) et génération de réponse par un LLM (`mistral-small-latest`).
 5. **Vérifier** la qualité des données à chaque étape via une suite de tests automatisés (`pytest`).
 
 L'objectif du POC est de démontrer qu'il est possible, à partir de sources ouvertes et d'un stack technique léger, de répondre à des questions en langage naturel sur des événements culturels réels — avec une réponse ancrée dans les données récupérées, et non hallucinée par le modèle.
@@ -79,7 +79,7 @@ L'ensemble des dépendances, avec leurs versions exactes, est figé dans `requir
 
 #### 1. `explorer_agendas.py` — exploration initiale
 
-Ce script sert à explorer manuellement le catalogue d'agendas disponibles sur OpenAgenda : recherche d'agendas par mot-clé, consultation du détail d'un agenda (nombre d'événements, description), comptage d'événements avec filtres (région, département, période), et inspection de la structure des champs (lieux, dates). Il a permis d'identifier les 4 premières sources retenues pour la région Pays de la Loire (l'agenda régional officiel, deux agendas mayennais, et un agrégateur "Grand Ouest").
+Ce script sert à explorer manuellement le catalogue d'agendas disponibles sur OpenAgenda : recherche d'agendas par mot-clé, consultation du détail d'un agenda (nombre d'événements, description), comptage d'événements avec filtres (région, département, période), et inspection de la structure des champs (lieux, dates). Il a permis d'identifier les 4 premières sources retenues pour la région Pays de la Loire (l'agenda régional officiel, deux agendas mayennais et un agrégateur "Grand Ouest").
 
 #### 2. `explore_agendas_regions.ipynb` — exploration secondaire
 
@@ -88,7 +88,7 @@ Ce notebook a été produit dans un second temps, après le constat que le corpu
 - **L'élargissement de la couverture Pays de la Loire** : recherche d'agendas culturels locaux non encore exploités (par ville, par institution).
 - **La comparaison avec d'autres régions françaises**, pour situer le volume obtenu par rapport à ce qui existe ailleurs sur la plateforme.
 
-**Solution retenue** : plutôt que de changer de région ou de renoncer à la granularité locale, la stratégie choisie a été d'**ajouter des agendas culturels locaux de la région Pays de la Loire** — spécifiquement des agendas institutionnels dédiés à la culture (un théâtre, un réseau de médiathèques), plutôt qu'un agenda administratif généraliste (écarté après vérification manuelle car trop bruité). Cette approche a permis de faire passer le corpus de 93 à 212 événements, tout en résolvant un déséquilibre géographique initial (deux départements sur cinq n'avaient aucun événement).
+**Solution retenue** : plutôt que de changer de région ou de renoncer à la granularité locale, la stratégie choisie a été d'**ajouter des agendas culturels locaux de la région Pays de la Loire** — spécifiquement des agendas institutionnels dédiés à la culture (un théâtre de Laval, un réseau de médiathèques du Mans), plutôt qu'un agenda administratif généraliste (écarté après vérification manuelle car trop bruité). Cette approche a permis de faire passer le corpus de 93 à 212 événements, tout en résolvant un déséquilibre géographique initial (deux départements sur cinq n'avaient aucun événement).
 
 ---
 
@@ -152,9 +152,9 @@ Une suite de 9 tests `pytest` valide automatiquement la cohérence du corpus apr
 | `test_no_duplicate_events` | Aucun `uid` en double |
 | `test_region_is_pays_de_la_loire` | Tous les événements sont bien situés en Pays de la Loire |
 | `test_department_within_region` | Le département de chaque événement fait partie des 5 départements de la région |
-| `test_events_are_upcoming_or_recent` | Aucun événement trop ancien (> 1 an) ni trop lointain dans le futur — marge de sécurité volontaire, le pipeline ne récupérant en pratique que des événements `upcoming` |
+| `test_events_are_upcoming_or_recent` | Aucun événement trop ancien (> 1 an) ni trop lointain dans le futur — marge de sécurité volontaire, le pipeline ne récupérant en pratique que des événements à venir (`upcoming`) |
 | `test_embedding_text_not_empty` | Le champ destiné à la vectorisation n'est jamais vide |
-| `test_coordinates_are_valid` | Les coordonnées géographiques (latitude/longitude) sont dans des bornes plausibles |
+| `test_coordinates_are_valid` | Les coordonnées géographiques (latitude/longitude) sont dans des bornes plausibles (en France) |
 
 Ces tests servent de garde-fou avant la vectorisation : un corpus qui échoue à l'un d'eux ne devrait pas être utilisé pour reconstruire l'index.
 
@@ -172,7 +172,7 @@ Le texte de chaque document est découpé via un `RecursiveCharacterTextSplitter
 
 #### 3. `build_vectorstore()` — vectorisation et construction de l'index FAISS
 
-Chaque chunk est transformé en vecteur numérique via le modèle d'embeddings Mistral (`mistral-embed`, 1024 dimensions), puis indexé dans une structure FAISS de type `IndexFlatL2` (recherche exacte par distance euclidienne — adaptée à un corpus de cette taille, à faire évoluer vers un index approximatif de type IVF/HNSW à plus grande échelle).
+Chaque chunk est transformé en vecteur numérique via le modèle d'embeddings Mistral (`mistral-embed`, 1024 dimensions), puis indexé dans une structure FAISS de type `IndexFlatL2` (recherche exacte par distance euclidienne — adaptée à un corpus de cette taille, à faire évoluer vers un index approximatif à plus grande échelle).
 
 #### 4. `test_search()` — validation locale
 
@@ -259,14 +259,15 @@ python scripts/chat_interactive.py    # Ouvre une session de questions/réponses
 
 ### B. Fonctionnement global de l'application
 
-Quand un utilisateur pose une question, quatre grandes étapes se succèdent :
+Après une question (ou une interaction) utilisateur, voici les différentes tâches opérées par le système RAG pour y apporter une réponse :
 
 1. **Compréhension du lieu** : le système tente de détecter si la question mentionne un lieu précis (ville, département), pour orienter la recherche.
-2. **Recherche par similarité** : la question est elle-même transformée en vecteur numérique (embedding), puis comparée mathématiquement à tous les vecteurs d'événements déjà indexés, pour identifier les plus proches sémantiquement — c'est le principe de la **recherche vectorielle**, indépendante des mots exacts employés (une question sur "un opéra" peut ainsi remonter un événement titré "Carmen").
-3. **Construction du contexte** : les événements les plus pertinents trouvés sont formatés en texte et injectés dans un prompt, aux côtés de la question — c'est le cœur de l'approche **RAG** : le modèle de langage ne répond pas "de mémoire", mais à partir d'informations réelles et à jour qu'on lui fournit à la volée.
-4. **Génération de la réponse** : un grand modèle de langage (Mistral) rédige une réponse en langage naturel, structurée, à partir de ce contexte — sans avoir accès à Internet ni à aucune autre source que les événements qui lui ont été transmis.
-
-Cette architecture garantit que le système ne peut recommander que des événements réellement présents dans la base — il ne peut pas "inventer" un événement, et il indique explicitement quand il n'a rien de pertinent à proposer.
+2. **Recherche par similarité dans l'index** : la question est elle-même transformée en vecteur numérique (embedding), puis comparée mathématiquement, **via l'index FAISS**, aux vecteurs des événements déjà indexés, pour identifier les plus proches sémantiquement — c'est le principe de la **recherche vectorielle**, indépendante des mots exacts employés (une question sur "un opéra" peut ainsi remonter un événement titré "Carmen"). Cette étape s'appuie uniquement sur les vecteurs (le contenu vectorisé) ; elle ne "connaît" pas encore le lieu mentionné par l'utilisateur.
+3. **Filtrage par métadonnées, appliqué *après* la recherche par similarité** : si un lieu a été détecté à l'étape 1, un filtre sur la métadonnée `department` (une donnée structurée conservée à part du texte vectorisé, comme expliqué en partie 2.D.4 et 2.F.1) est appliqué **en aval** de la recherche vectorielle, et non pas en amont ni au sein de l'index lui-même : FAISS (dans sa version `IndexFlatL2` utilisée ici) n'a pas de notion native de filtrage par métadonnées. Concrètement, l'index commence par renvoyer un large pool de candidats classés par similarité (jusqu'à `fetch_k` résultats — ici réglé sur la taille totale du corpus, pour être certain de couvrir tous les événements du département recherché même s'ils ne sont pas les plus proches sémantiquement de la question), puis ce pool est filtré pour ne garder que les événements dont la métadonnée `department` correspond au lieu détecté, et seuls les `k` premiers résultats filtrés sont conservés. Si aucun événement ne passe ce filtre (lieu trop restrictif), une seconde recherche sans filtre est faite en repli, avec consigne au modèle de ne pas présenter ces résultats comme correspondant au lieu demandé.
+4. **Construction du contexte** : les événements les plus pertinents trouvés (filtrés ou non) sont formatés en texte et injectés dans un prompt, aux côtés de la question — c'est le cœur de l'approche **RAG** : le modèle de langage ne répond pas "de mémoire", mais à partir d'informations réelles et à jour qu'on lui fournit à la volée. Pour ce POC, le contexte est consitué uniquement du résultat de la recherche vectorielle par similarité (Index FAISS + question) et du prompt (Prompt système + question) : aucun historique de conversation n'est transmis à ce stade (cela fait l'objet d'une limite assumé de l'application, visible dans la conclusion).
+5. **Génération de la réponse** : un grand modèle de langage (Mistral) rédige une réponse en langage naturel, structurée, à partir de ce contexte — sans avoir accès à Internet ni à aucune autre source que les événements qui lui ont été transmis.
+Cette architecture garantit que le système ne peut recommander que des événements réellement présents dans la base — il ne peut pas "inventer" un événement, et il indique explicitement quand il n'a rien de pertinent à proposer. Elle illustre aussi pourquoi séparer texte vectorisé (`embedding_text`) et métadonnées structurées (dont le lieu) dès le nettoyage des données (partie 2.D.4) est indispensable : sans cette séparation, un filtrage géographique fiable et déterministe, en complément de la recherche sémantique, ne serait pas possible.
+ 
 
 ---
 
@@ -274,16 +275,16 @@ Cette architecture garantit que le système ne peut recommander que des événem
 
 ### Bilan
 
-Le POC démontre la faisabilité d'un système de recommandation d'événements culturels reposant entièrement sur des données réelles (OpenAgenda), avec une chaîne de traitement reproductible de bout en bout : collecte multi-sources, nettoyage et filtrage (y compris un filtrage culturel adapté à l'hétérogénéité des sources), vectorisation, et génération de réponses contextualisées via LangChain et Mistral.
+Le POC démontre la faisabilité d'un système de recommandation d'événements culturels reposant entièrement sur des données réelles (OpenAgenda), avec une chaîne de traitement reproductible de bout en bout : collecte multi-sources, nettoyage et filtrage (y compris un filtrage adapté à l'hétérogénéité des sources), vectorisation, et génération de réponses contextualisées via LangChain et Mistral.
 
 Le corpus final compte **212 événements culturels**, répartis sur les 5 départements de la région Pays de la Loire (de 22 à 55 événements par département), après un travail itératif d'équilibrage géographique des sources. Le système répond correctement à des questions thématiques, géographiques, et signale honnêtement l'absence de résultat quand aucun événement ne correspond à la demande.
 
 **Limites assumées du POC** :
 - Le corpus reste de taille modeste (quelques centaines d'événements), ce qui limite la richesse des réponses possibles sur des requêtes très spécifiques.
-- Les déduplications inter-agendas (un même événement physique publié sous des `uid` différents sur plusieurs sources) ne sont pas détectées.
+- La déduplication actuelle (dans `fetch_events.py`) fonctionne au niveau de l'identifiant OpenAgenda (`uid`), de façon globale entre toutes les sources — elle intercepte donc bien un même événement republié tel quel sur plusieurs agendas avec le même `uid`. En revanche, elle ne détecte pas les doublons **de contenu** : un même événement réel saisi séparément (donc sous deux `uid` différents) dans deux agendas distincts n'est pas fusionné.
 - L'index FAISS utilisé (`IndexFlatL2`, recherche exacte) n'est pas conçu pour passer à l'échelle sur un corpus de plusieurs dizaines de milliers d'événements.
 - La dépendance `langchain-community` utilisée pour l'intégration FAISS est en cours de dépréciation par son éditeur.
-
+- Absence de mémoire conversationnelle : chaque question est traitée de manière totalement indépendante (`retrieve()` ne reçoit que la question courante, et le prompt ne contient aucun historique). Le système ne peut donc pas gérer de questions de suivi qui font référence à l'échange précédent (ex. "Et le week-end prochain ?" après une première question sur des concerts à Nantes) — chaque requête doit être formulée de façon autonome.
 ### Perspectives d'évolution
 
 Pour passer de ce POC régional à un système national correspondant à l'ambition de Puls-Events, plusieurs pistes se dégagent :
@@ -292,5 +293,6 @@ Pour passer de ce POC régional à un système national correspondant à l'ambit
 - **Passage à l'échelle de l'index** : migrer vers un index FAISS approximatif (IVF, HNSW) pour maintenir des temps de réponse raisonnables sur un corpus significativement plus volumineux.
 - **Déduplication inter-sources** : mettre en place une détection de doublons basée sur la similarité (titre, date, lieu) plutôt que sur le seul `uid`, pour fusionner les événements identiques publiés sur plusieurs agendas.
 - **Migration technique** : remplacer `langchain-community` par les paquets d'intégration autonomes recommandés par LangChain, pour anticiper la dépréciation annoncée.
+- **Mémoire conversationnelle** : pour répondre à la limite évoquée plus haut (chaque question traitée indépendamment), intégrer un historique de conversation dans la chaîne — en injectant les tours précédents dans le prompt (via un `MessagesPlaceholder`), et en reformulant la question avant l'étape de recherche vectorielle (`retrieve`) pour qu'une question de suivi (ex. "Et le week-end prochain ?") soit correctement recontextualisée avant d'interroger l'index FAISS.
 - **Évaluation continue** : construire un jeu de questions/réponses annotées de référence pour mesurer objectivement la qualité des réponses du système dans le temps, notamment à mesure que le corpus grandit.
 - **Interface utilisateur** : faire évoluer le chat interactif en ligne de commande vers une interface web ou une intégration directe dans les canaux de communication de Puls-Events (site, application).
