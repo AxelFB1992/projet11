@@ -21,7 +21,7 @@ DEPARTEMENTS_REGION = {
 
 @pytest.fixture(scope="module")
 
-#Permet de savoir le fichier renseigné dans le path (events_clean.csv) existe et si le jeu de données (df) n'est pas vide
+#Permet de savoir si le fichier renseigné dans le path (events_clean.csv) existe et si le jeu de données (df) n'est pas vide
 def events_df():
     """Charge le jeu de données nettoyé une seule fois pour tous les tests."""
     assert DATA_PATH.exists(), f"Fichier introuvable : {DATA_PATH}. Lance d'abord fetch_events.py et preprocess_events.py."
@@ -108,7 +108,7 @@ def test_embedding_text_not_empty(events_df):
     assert events_df["embedding_text"].notna().all()
     assert (events_df["embedding_text"].str.strip() != "").all()
 
-#Test plus poussés qui permet d'éviter des grandes anomalies de géolocalisation, lorsque les coordonées sont renseignées
+#Test plus poussé qui permet d'éviter des grandes anomalies de géolocalisation, lorsque les coordonées sont renseignées
 def test_coordinates_are_valid(events_df):
     """Les coordonnées GPS, quand présentes, sont dans des bornes plausibles pour la France."""
     coords = events_df.dropna(subset=["latitude", "longitude"])
