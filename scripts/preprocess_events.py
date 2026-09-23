@@ -1,3 +1,8 @@
+"""
+Script de pré-processing permettant de nettoyer les données, de les filtrer pour ne garder que les évenements culturels
+et de créer que le champs qui servira à la vectorisation ('embedding_text')
+"""
+
 import json
 import pandas as pd
 import re
@@ -70,6 +75,23 @@ def build_embedding_text(row):
     return " | ".join(p for p in parts if p)
 
 def main():
+    """
+    Cette méthode, au delà de faire appel aux fonction précedemment énoncées, fait un nettoyage et un filtrage des données 
+    en appliquant les traitements suivants :
+        -Suppression des lignes sans titre ou sans date de début
+        -Conversion des dates en DateTime
+        -Suppression des doublons sur uid (sécurité, même si peu probable ici car déjà réalisés dans fetch_events.py)
+        -Exclusion des événements sans département (webinaires/événements en ligne sans lieu physique)
+        -Exclusion des événements hors région Pays de la Loire (Par exemple Unidivers est un agrégateur "Grand Ouest")
+        -Exclusion des événements non culturels :
+            -Par liste noire (orientation professionnelle, emploi, salons étudiants) pour la totalité des données.
+            -Par liste blanche (théatre, danse, musique) pour les données provenant de l'Agenda 'Département de la Vendée'
+
+    Par ailleurs, grâce aux méthodes précedemment ennoncée, elle réalise également : 
+        -l'extraction des évenements ainsi que leur nettoyage avant les traitements énoncés ci-dessus
+        -la création du champs 'embedding_text' sur les données propres et filtrés après les traitements énoncés ci-dessus
+        -l'écriture du résultat de la totalité des traitements, sous forme de dataframe, dans deux fichiers events_clean.csv/json
+    """
     #On récupere les évenement en format json (1 évenement = 1 élement json)
     raw_events = load_raw_events()
     #On compte le nombre d'évenement
@@ -91,7 +113,7 @@ def main():
     df["date_start"] = pd.to_datetime(df["date_start"], errors="coerce", utc=True)
     df["date_end"] = pd.to_datetime(df["date_end"], errors="coerce", utc=True)
 
-    # Suppression des doublons sur uid (sécurité, même si peu probable ici)
+    # Suppression des doublons sur uid (sécurité, même si peu probable ici car déjà réalisés dans fetch_events.pyi)
     before = len(df)
     df = df.drop_duplicates(subset="uid")
     print(f"Doublons supprimés : {before - len(df)}")
@@ -141,7 +163,7 @@ def main():
     #evenements_exclus = df[mask_non_culturel]
 
     before = len(df)
-    #On liste les évenements correspondant à build_embedding_textbuild_embedding_textbuild_embedding_text]["title"].tolist()
+    #On liste les évenements correspondant à des evenements non culturels
     #Et on supprime ces évenements du dataframe initial, en prenant le soin de mesurer le nom d'envements exclus
     evenements_exclus = df[mask_non_culturel]["title"].tolist()
     df = df[~mask_non_culturel]
@@ -168,7 +190,11 @@ def main():
     ]
     cultural_regex = re.compile("|".join(CULTURAL_PATTERNS), re.IGNORECASE)
 
+    #La partie du DataFrame qui concerne la vendrée
     est_source_vendee = df["source_agenda"] == "Département de la Vendée"
+
+    #Le Texte complet de la totalité du data frame, sur lequel on va appliquer le filtre
+    #En effet, on crée un masque en appliquant le filtre sur toute le df, et ensuite on applique le masque sur la partie Vendéenne
     texte_complet_vendee = (df["title"].fillna("") + " " + df["description"].fillna("") + " " + df["keywords"].fillna(""))
     mask_culturel_vendee = texte_complet_vendee.str.contains(cultural_regex)
 

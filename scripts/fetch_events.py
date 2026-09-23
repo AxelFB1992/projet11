@@ -1,3 +1,11 @@
+"""
+Script permettant de récupérés les données présentes sur OpenAgenda qui correspondent aux sources enoncées en début de script
+Ce script collecte les données proprement grâce à une clé API spécifique à OpenAgenda en les stocket par bloc de 100
+Il va également appliquer un traitement pour éviter de récuperer deux fois un même évenement (ayant le même uid)
+Une fois la collecte terminée, les évenements seront stockés bruts dans le fichier data/raw_events.jso pour pre-processing
+Il affichera également le nombre d'évenements récupérés par source et en totalité.
+"""
+
 import requests
 import json
 import os
@@ -21,6 +29,7 @@ SOURCES = [
 
 def fetch_events_from_agenda(agenda_uid, admin_level2=None):
     """Récupère les événements à venir d'un agenda."""
+    
     base_url = f"https://api.openagenda.com/v2/agendas/{agenda_uid}/events"
     headers = {"key": API_KEY}
     params = {

@@ -85,9 +85,25 @@ def format_docs(docs):
         blocs.append(bloc)
     return "\n\n".join(blocs)
 
-""" Retourne l'objet chain, à la base de notre système RAG
-"""
+
 def build_rag_chain(k=5):
+    """ Retourne l'objet chain, à la base de notre système RAG
+
+    Zomm sur la méthode interne retrieve(question):
+    Cette méthode permet de retourner les similarités entre la question et les documents présent dans l'objet (via l'index)
+    Avant de rechercher directement les similarités, on va d'abord regarder les départements et villes énoncées dans la question
+    correspondent bien à des villes et départements présents dans le corpus (avec avec load_knows_locations)
+        -Si c'est bien le cas, alors on va rechercher des similarités avec un élement en plus : un filtre pour la localisation
+        -Si ce n'est pas le cas, alors on fait juste une recherche de similarité vu qu'aucune localisation connue n'est mentionnée
+
+    Zomm sur l'objet chain retourné par la méthode correspondant au système RAG complet contenant :
+         - le promt global (question + prompt système)
+         - le llm
+         - le contexte, qui consiste en un appel à la méthode retrieve qui se charge de faire appel à la base de données vectorielle
+        ainsi que tous les documents originaux. De même la question de l'utilisation fait également partie du contexte.
+         - Un parseur, qui permet certainement de structurer la réponse fournie par le llm
+    Chain est un objet de type 'RunnableSequence', de la classe langchain_core.runnables.base.RunnableSequence
+    """
     #On recupère l'objet FAISS encapsulant l'index et les documents originaux
     vectorstore = load_vectorstore()
     #On récupère, via l'index, les différents départements et villes contenus dans les documents
@@ -95,12 +111,7 @@ def build_rag_chain(k=5):
     #On liste le nombre total de documents
     total_docs = len(vectorstore.index_to_docstore_id)
 
-    """Cette méthode permet de retourner les similarités entre la question et les documents présent dans l'objet (via l'index)
-    Avant de rechercher directement les similarités, on va d'abord regarder les départements et villes énoncées dans la question
-    correspondent bien à des villes et départements présents dans le corpus (avec avec load_knows_locations)
-    -Si c'est bien le cas, alors on va rechercher des similarités avec un élement en plus : un filtre pour la localisation
-    -Si ce n'est pas le cas, alors on fait juste une recherche de similarité vu qu'aucune localisation connue n'est mentionnée
-    """
+    #Cette méthode permet de retourner les similarités entre la question et les documents présent dans l'objet (via l'index)
     def retrieve(question):
         location_filter = extract_location(question, departments, cities)
         if location_filter:
@@ -136,14 +147,7 @@ def build_rag_chain(k=5):
     #Ici c'est le LLM fournit par Mistral, un modèle de langage déjà entrainé sur une quantité de données suffisante pour répondre
     llm = ChatMistralAI(model="mistral-small-latest", temperature=0.3)
 
-    """Voilà le système RAG complet condensés dans ces quelques lignes qui contient :
-     - le promt global (question + prompt système)
-     - le llm
-     - le contexte, qui consiste en un appel à la méthode retrieve qui se charge de faire appel à la base de données vectorielle
-    ainsi que tous les documents originaux. De même la question de l'utilisation fait également partie du contexte.
-     - Un parseur, qui permet certainement de structurer la réponse fournie par le llm
-     Chain est un objet de type 'RunnableSequence', de la classe langchain_core.runnables.base.RunnableSequence
-    """
+    #Le système RAG complet comprenant le contexte, le prompt global (système + question) le llm mistral et un parseur de sortie
     chain = (
         {"context": RunnableLambda(retrieve), "question": RunnablePassthrough()}
         | prompt
@@ -158,6 +162,14 @@ def build_rag_chain(k=5):
 
 
 def main():
+    """
+    Cette méthode consiste uniquement à créer un élément chain via la méthode build_rag_chain() et à invoquer la méthode invoke()
+
+    L'élément chain est un objet de type RunnableSequence qui, comme son nom l'indique, est une séquence d'objet de type Runnable
+    Or, comme tout objet Runnable, il implémente la méthode invoke. On suppose que cette méthode invoke appelle dans l'ordre chacune
+    des méthodes invoke de chaque objet Runnable qui compose le Runnable Sequence.
+    --> Tous les objets heritent de l'interface Runnable
+    """
     chain = build_rag_chain()
 
     test_questions = [
@@ -174,11 +186,7 @@ def main():
         response = chain.invoke(question)
         print(f"R : {response}\n")
 
-    """L'élément chain est un objet de type RunnableSequence qui, comme son nom l'indique, est une séquence d'objet de type Runnable
-    Or, comme tout objet Runnable, il implémente la méthode invoke. Je suppose que cette méthode invoke appelle dans l'ordre chacune
-    des méthodes invoke de chaque objet Runnable qui compose le Runnable Sequence.
-    --> Tous les objets heritent de l'interface Runnable
-    """
+    
 
 if __name__ == "__main__":
     main()

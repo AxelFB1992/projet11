@@ -1,11 +1,13 @@
-"""Teste le filtrage par métadonnées combiné à la recherche sémantique FAISS.
+""".
 Construit (ou reconstruit) la base vectorielle FAISS à partir des événements
 nettoyés. Ce script peut être relancé à tout moment pour régénérer l'index
 depuis data/events_clean.json.
 
-En effet, dans cet index, il y a deux technologie :
+Dans cet index, il y a deux technologie :
 -les métadonnées comme la date
 -La recherche semantique qui utilise l'index vectorisé pour faire des recherches sur les champs textuels
+
+Teste également le filtrage par métadonnées combiné à la recherche sémantique FAISS
 """
 
 import os
@@ -25,21 +27,20 @@ DATA_PATH = "data/events_clean.json"
 #Le fichier où l'on va stocker l'index
 INDEX_PATH = "vectorstore/faiss_index"
 
-"""Charge les événements nettoyés et les convertit en Documents LangChain,
-avec les métadonnées séparées du texte vectorisé (voir discussion sur
-l'exclusion de la date de l'embedding_text)."""
 def load_documents(path=DATA_PATH):
-
+    """Charge les événements nettoyés et les convertit en Documents LangChain,
+    avec les métadonnées séparées du texte vectorisé.
+    Autrement dit, on génère des documents qui vont avoir la structure suivante :
+        -le contenu de embedding_text en format brut : une ligne
+        -les metadonnées sous forme de sous document structuré avec plusieurs champs reprenant les champs du fichier (hors embedding)
+    """
+    
     #On lit le fichier json correspondant aux évenements nettoyés et on les stocke dans un dataframe (ils sont déjà parsé).
     df = pd.read_json(path)
     #On récupère tout de suite les dates de début et les dates de fin qu'on l'on convertit en datetime
     df["date_start"] = pd.to_datetime(df["date_start"], errors="coerce", utc=True)
     df["date_end"] = pd.to_datetime(df["date_end"], errors="coerce", utc=True)
 
-    """On génère des documents qui vont avoir la structure suivante :
-        -le contenu de embedding_text en format brut : une ligne
-        -les metadonnées sous forme de sous document structuré avec plusieurs champs reprenant les champs du fichier (hors embedding)
-    """
     documents = []
     for _, row in df.iterrows():
         metadata = {
@@ -103,6 +104,7 @@ def build_vectorstore(chunks):
 #On re-utilise l'objet vectorstore car c'est lui qui a permet de vectorisé l'index, donc qui vectorisera aussi les questions
 def test_search(vectorstore):
     """Quelques recherches de vérification pour valider la pertinence sémantique."""
+    
     test_queries = [
         "Un concert de musique classique à Nantes",
         "Exposition sur le patrimoine régional",
