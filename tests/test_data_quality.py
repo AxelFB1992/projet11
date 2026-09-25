@@ -36,6 +36,7 @@ def test_data_not_empty(events_df):
     """Le jeu de données contient au moins un événement."""
     assert len(events_df) > 0
 
+#Aucun évènement n'a de titre manquant
 def test_no_missing_title(events_df):
     """Chaque événement a un titre non vide."""
     assert events_df["title"].notna().all()

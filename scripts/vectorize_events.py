@@ -1,4 +1,4 @@
-""".
+data/raw_events.jso""".
 Construit (ou reconstruit) la base vectorielle FAISS à partir des événements
 nettoyés. Ce script peut être relancé à tout moment pour régénérer l'index
 depuis data/events_clean.json.

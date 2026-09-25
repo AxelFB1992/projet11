@@ -69,7 +69,7 @@ def debug_dates(agenda_uid, nom):
         #Que l'on affiche clairement
         print(f"  {first} | {title[:50]}")
 
-#Cette fonction permet d'inspecter la structure d'un evenement en explorant le contenu entier (les balises) du premier évenement
+#Cette fonction permet d'inspecter la structure d'un agenda en explorant le contenu entier (les balises) du premier évenement
 def inspect_raw_structure(agenda_uid, nom):
     url = f"https://api.openagenda.com/v2/agendas/{agenda_uid}/events"
     headers = {"key": API_KEY}
@@ -79,7 +79,7 @@ def inspect_raw_structure(agenda_uid, nom):
     data = response.json()
     print(f"\n=== {nom} : structure complète du 1er événement ===")
     if data.get("events"):
-        print(json.dumps(data["events"][0], indent=2, ensure_ascii=False)[:2000])
+        print(json.dumps(data["events"][0], indent=2, ensure_ascii=False)[:])
     else:
         print("Aucun événement retourné.")
 
@@ -142,7 +142,12 @@ def inspect_upcoming_region(agenda_uid, nom):
 
 if __name__ == "__main__":
     #C'est le dernier agenda que l'on a inspecté avant de se focaliser dessus : les pays de la loire
-    inspect_upcoming_region(16676449, "Agenda de la Région des Pays de la Loire")
+    inspect_raw_structure(16676449, "Agenda de la Région des Pays de la Loire")
+    inspect_raw_structure(14115607, "Unidivers Oui sortir")
+    inspect_raw_structure(31651509, "Théâtre de Laval - CDN")
+    inspect_raw_structure(48454528, "Réseau des médiathèques & Archives du Mans")
+    inspect_raw_structure(7894666, "Département de la Vendé")
+    #inspect_upcoming_region(16676449, "Agenda de la Région des Pays de la Loire")
     #inspect_upcoming_region(14115607, "Unidivers Oui sortir")
-    inspect_upcoming_region(31651509, "Théâtre de Laval - CDN")
-    inspect_upcoming_region(48454528, "Réseau des médiathèques & Archives du Mans")
+    #inspect_upcoming_region(31651509, "Théâtre de Laval - CDN")
+    #inspect_upcoming_region(48454528, "Réseau des médiathèques & Archives du Mans")
