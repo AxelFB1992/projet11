@@ -49,7 +49,7 @@ def extract_event(e):
         "longitude": location.get("longitude"),
         "date_start": first_timing.get("begin"),
         "date_end": last_timing.get("end"),
-        "slug": e.get("slug"),
+        #"slug": e.get("slug"),
         "source_agenda": e.get("_source_agenda", ""),
         "url": f"https://openagenda.com/agenda-de-la-region-des-pays-de-la-loire/events/{e.get('slug')}" if e.get("slug") else "",
     }
